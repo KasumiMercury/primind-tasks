@@ -1,0 +1,56 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  api:
+    build:
+      context: .
+      target: api
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - API_PORT=8080
+      - QUEUE_NAME=default
+      - RETRY_COUNT=3
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      - REDIS_ADDR=redis:6379
+      - TARGET_ENDPOINT=http://example-service:8000/webhook
+      - RETRY_COUNT=3
+      - WORKER_CONCURRENCY=10
+      - QUEUE_NAME=default
+      - REQUEST_TIMEOUT=30s
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  asynqmon:
+    image: hibiken/asynqmon:latest
+    ports:
+      - "8081:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis-data:
