@@ -32,6 +32,10 @@ func (c *Client) Close() error {
 }
 
 func (c *Client) EnqueueTask(payload *TaskPayload, scheduleTime *time.Time) (*asynq.TaskInfo, error) {
+	return c.EnqueueTaskWithQueue(payload, scheduleTime, c.queueName)
+}
+
+func (c *Client) EnqueueTaskWithQueue(payload *TaskPayload, scheduleTime *time.Time, queueName string) (*asynq.TaskInfo, error) {
 	data, err := payload.Marshal()
 	if err != nil {
 		return nil, err
@@ -40,7 +44,7 @@ func (c *Client) EnqueueTask(payload *TaskPayload, scheduleTime *time.Time) (*as
 	task := asynq.NewTask(TaskTypeHTTPForward, data)
 
 	opts := []asynq.Option{
-		asynq.Queue(c.queueName),
+		asynq.Queue(queueName),
 		asynq.MaxRetry(c.retryCount),
 	}
 
