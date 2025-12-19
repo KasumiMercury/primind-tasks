@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/hibiken/asynq"
 
 	"github.com/KasumiMercury/primind-tasks/internal/queue"
 	"github.com/KasumiMercury/primind-tasks/pkg/cloudtasks"
@@ -24,18 +26,18 @@ func NewHandler(client *queue.Client) *Handler {
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	var req cloudtasks.CreateTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid request body: %v", err))
 		return
 	}
 
 	if req.Task.HTTPRequest == nil {
-		http.Error(w, "httpRequest is required", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "httpRequest is required")
 		return
 	}
 
 	body, err := req.Task.HTTPRequest.DecodeBody()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid base64 body: %v", err), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid base64 body: %v", err))
 		return
 	}
 
@@ -45,21 +47,30 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	if req.Task.ScheduleTime != "" {
 		t, err := time.Parse(time.RFC3339, req.Task.ScheduleTime)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid scheduleTime format: %v", err), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid scheduleTime format: %v", err))
 			return
 		}
 		scheduleTime = &t
 	}
 
-	info, err := h.client.EnqueueTask(payload, scheduleTime)
+	info, err := h.client.EnqueueTask(payload, scheduleTime, req.Task.Name)
 	if err != nil {
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			WriteError(w, http.StatusConflict, StatusAlreadyExists, fmt.Sprintf("task with name %q already exists", req.Task.Name))
+			return
+		}
 		log.Printf("failed to enqueue task: %v", err)
-		http.Error(w, "failed to enqueue task", http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to enqueue task")
 		return
 	}
 
+	taskName := req.Task.Name
+	if taskName == "" {
+		taskName = fmt.Sprintf("tasks/%s", info.ID)
+	}
+
 	resp := cloudtasks.CreateTaskResponse{
-		Name:       fmt.Sprintf("tasks/%s", info.ID),
+		Name:       taskName,
 		CreateTime: time.Now().Format(time.RFC3339),
 	}
 	if scheduleTime != nil {
@@ -74,24 +85,24 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 	queueName := chi.URLParam(r, "queue")
 	if queueName == "" {
-		http.Error(w, "queue name is required", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "queue name is required")
 		return
 	}
 
 	var req cloudtasks.CreateTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, fmt.Sprintf("invalid request body: %v", err), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid request body: %v", err))
 		return
 	}
 
 	if req.Task.HTTPRequest == nil {
-		http.Error(w, "httpRequest is required", http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "httpRequest is required")
 		return
 	}
 
 	body, err := req.Task.HTTPRequest.DecodeBody()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("invalid base64 body: %v", err), http.StatusBadRequest)
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid base64 body: %v", err))
 		return
 	}
 
@@ -101,21 +112,30 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 	if req.Task.ScheduleTime != "" {
 		t, err := time.Parse(time.RFC3339, req.Task.ScheduleTime)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid scheduleTime format: %v", err), http.StatusBadRequest)
+			WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid scheduleTime format: %v", err))
 			return
 		}
 		scheduleTime = &t
 	}
 
-	info, err := h.client.EnqueueTaskWithQueue(payload, scheduleTime, queueName)
+	info, err := h.client.EnqueueTaskWithQueue(payload, scheduleTime, queueName, req.Task.Name)
 	if err != nil {
+		if errors.Is(err, asynq.ErrTaskIDConflict) {
+			WriteError(w, http.StatusConflict, StatusAlreadyExists, fmt.Sprintf("task with name %q already exists", req.Task.Name))
+			return
+		}
 		log.Printf("failed to enqueue task: %v", err)
-		http.Error(w, "failed to enqueue task", http.StatusInternalServerError)
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to enqueue task")
 		return
 	}
 
+	taskName := req.Task.Name
+	if taskName == "" {
+		taskName = fmt.Sprintf("tasks/%s", info.ID)
+	}
+
 	resp := cloudtasks.CreateTaskResponse{
-		Name:       fmt.Sprintf("tasks/%s", info.ID),
+		Name:       taskName,
 		CreateTime: time.Now().Format(time.RFC3339),
 	}
 	if scheduleTime != nil {
