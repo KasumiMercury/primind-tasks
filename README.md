@@ -28,6 +28,7 @@ POST `/tasks/{queue}`
 `httpRequest.body`: base64エンコードのリクエストボディ
 `httpRequest.headers`: 転送時に付与するHTTPヘッダー
 `scheduleTime`: 実行時刻
+`name`: タスクID（オプション、重複排除用）
 
 response
 ```json
@@ -63,6 +64,35 @@ curl -X POST http://localhost:8080/tasks \
     }
   }'
 ```
+
+`task.name` 指定で重複排除ができる
+
+```bash
+curl -X POST http://localhost:8080/tasks \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": {
+      "name": "my-unique-task-id",
+      "httpRequest": {
+        "body": "eyJrZXkiOiAidmFsdWUifQ=="
+      }
+    }
+  }'
+```
+
+同じ `name` で再度リクエストした場合、409 Conflictエラー
+
+```json
+{
+  "error": {
+    "code": 409,
+    "message": "task with name \"my-unique-task-id\" already exists",
+    "status": "ALREADY_EXISTS"
+  }
+}
+```
+
+`name` を指定しない場合は、IDは自動生成
 
 ## 環境変数
 

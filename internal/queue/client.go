@@ -31,11 +31,11 @@ func (c *Client) Close() error {
 	return c.client.Close()
 }
 
-func (c *Client) EnqueueTask(payload *TaskPayload, scheduleTime *time.Time) (*asynq.TaskInfo, error) {
-	return c.EnqueueTaskWithQueue(payload, scheduleTime, c.queueName)
+func (c *Client) EnqueueTask(payload *TaskPayload, scheduleTime *time.Time, taskID string) (*asynq.TaskInfo, error) {
+	return c.EnqueueTaskWithQueue(payload, scheduleTime, c.queueName, taskID)
 }
 
-func (c *Client) EnqueueTaskWithQueue(payload *TaskPayload, scheduleTime *time.Time, queueName string) (*asynq.TaskInfo, error) {
+func (c *Client) EnqueueTaskWithQueue(payload *TaskPayload, scheduleTime *time.Time, queueName string, taskID string) (*asynq.TaskInfo, error) {
 	data, err := payload.Marshal()
 	if err != nil {
 		return nil, err
@@ -46,6 +46,10 @@ func (c *Client) EnqueueTaskWithQueue(payload *TaskPayload, scheduleTime *time.T
 	opts := []asynq.Option{
 		asynq.Queue(queueName),
 		asynq.MaxRetry(c.retryCount),
+	}
+
+	if taskID != "" {
+		opts = append(opts, asynq.TaskID(taskID))
 	}
 
 	if scheduleTime != nil && scheduleTime.After(time.Now()) {
