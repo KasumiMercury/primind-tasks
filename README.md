@@ -25,10 +25,10 @@ POST `/tasks/{queue}`
 }
 ```
 
-`httpRequest.body`: base64エンコードのリクエストボディ
-`httpRequest.headers`: 転送時に付与するHTTPヘッダー
-`scheduleTime`: 実行時刻
-`name`: タスクID（オプション、重複排除用）
+`httpRequest.body`: base64エンコードのリクエストボディ  
+`httpRequest.headers`: 転送時に付与するHTTPヘッダー  
+`scheduleTime`: 実行時刻  
+`name`: タスクID（オプション、重複排除用）  
 
 response
 ```json
