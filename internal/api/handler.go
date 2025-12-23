@@ -1,9 +1,11 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"time"
@@ -11,8 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/hibiken/asynq"
 
+	taskqueuev1 "github.com/KasumiMercury/primind-tasks/internal/gen/taskqueue/v1"
+	pjson "github.com/KasumiMercury/primind-tasks/internal/proto"
 	"github.com/KasumiMercury/primind-tasks/internal/queue"
-	"github.com/KasumiMercury/primind-tasks/pkg/cloudtasks"
 )
 
 type Handler struct {
@@ -24,24 +27,30 @@ func NewHandler(client *queue.Client) *Handler {
 }
 
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
-	var req cloudtasks.CreateTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("failed to read request body: %v", err))
+		return
+	}
+
+	var req taskqueuev1.CreateTaskRequest
+	if err := pjson.Unmarshal(body, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid request body: %v", err))
 		return
 	}
 
-	if req.Task.HTTPRequest == nil {
-		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "httpRequest is required")
+	if err := pjson.Validate(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("validation error: %v", err))
 		return
 	}
 
-	body, err := req.Task.HTTPRequest.DecodeBody()
+	decodedBody, err := base64.StdEncoding.DecodeString(req.Task.HttpRequest.Body)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid base64 body: %v", err))
 		return
 	}
 
-	payload := queue.NewTaskPayload(body, req.Task.HTTPRequest.Headers)
+	payload := queue.NewTaskPayload(decodedBody, req.Task.HttpRequest.Headers)
 
 	var scheduleTime *time.Time
 	if req.Task.ScheduleTime != "" {
@@ -69,7 +78,7 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		taskName = fmt.Sprintf("tasks/%s", info.ID)
 	}
 
-	resp := cloudtasks.CreateTaskResponse{
+	resp := &taskqueuev1.CreateTaskResponse{
 		Name:       taskName,
 		CreateTime: time.Now().Format(time.RFC3339),
 	}
@@ -77,9 +86,15 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		resp.ScheduleTime = scheduleTime.Format(time.RFC3339)
 	}
 
+	respBytes, err := pjson.Marshal(resp)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to marshal response")
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	w.Write(respBytes)
 }
 
 func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
@@ -89,24 +104,30 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req cloudtasks.CreateTaskRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("failed to read request body: %v", err))
+		return
+	}
+
+	var req taskqueuev1.CreateTaskRequest
+	if err := pjson.Unmarshal(body, &req); err != nil {
 		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid request body: %v", err))
 		return
 	}
 
-	if req.Task.HTTPRequest == nil {
-		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "httpRequest is required")
+	if err := pjson.Validate(&req); err != nil {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("validation error: %v", err))
 		return
 	}
 
-	body, err := req.Task.HTTPRequest.DecodeBody()
+	decodedBody, err := base64.StdEncoding.DecodeString(req.Task.HttpRequest.Body)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, fmt.Sprintf("invalid base64 body: %v", err))
 		return
 	}
 
-	payload := queue.NewTaskPayload(body, req.Task.HTTPRequest.Headers)
+	payload := queue.NewTaskPayload(decodedBody, req.Task.HttpRequest.Headers)
 
 	var scheduleTime *time.Time
 	if req.Task.ScheduleTime != "" {
@@ -134,7 +155,7 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 		taskName = fmt.Sprintf("tasks/%s", info.ID)
 	}
 
-	resp := cloudtasks.CreateTaskResponse{
+	resp := &taskqueuev1.CreateTaskResponse{
 		Name:       taskName,
 		CreateTime: time.Now().Format(time.RFC3339),
 	}
@@ -142,9 +163,15 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 		resp.ScheduleTime = scheduleTime.Format(time.RFC3339)
 	}
 
+	respBytes, err := pjson.Marshal(resp)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to marshal response")
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(resp)
+	w.Write(respBytes)
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
