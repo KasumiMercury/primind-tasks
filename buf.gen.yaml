@@ -1,0 +1,17 @@
+version: v2
+inputs:
+  - directory: proto
+    paths:
+      - proto/taskqueue/v1
+plugins:
+  - local: protoc-gen-go
+    out: internal/gen
+    opt: paths=source_relative
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/KasumiMercury/primind-tasks/internal/gen
+  disable:
+    - file_option: go_package
+      module: buf.build/bufbuild/protovalidate
