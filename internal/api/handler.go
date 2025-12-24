@@ -179,3 +179,55 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
+
+func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	taskID := chi.URLParam(r, "taskId")
+	if taskID == "" {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "task ID is required")
+		return
+	}
+
+	h.deleteTaskFromQueue(w, h.client.DefaultQueueName(), taskID)
+}
+
+func (h *Handler) DeleteTaskWithQueue(w http.ResponseWriter, r *http.Request) {
+	queueName := chi.URLParam(r, "queue")
+	if queueName == "" {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "queue name is required")
+		return
+	}
+
+	taskID := chi.URLParam(r, "taskId")
+	if taskID == "" {
+		WriteError(w, http.StatusBadRequest, StatusInvalidArgument, "task ID is required")
+		return
+	}
+
+	h.deleteTaskFromQueue(w, queueName, taskID)
+}
+
+func (h *Handler) deleteTaskFromQueue(w http.ResponseWriter, queueName, taskID string) {
+	err := h.client.DeleteTaskFromQueue(queueName, taskID)
+	if err != nil {
+		if errors.Is(err, asynq.ErrQueueNotFound) || errors.Is(err, asynq.ErrTaskNotFound) {
+			WriteError(w, http.StatusNotFound, StatusNotFound,
+				fmt.Sprintf("task %q not found in queue %q", taskID, queueName))
+			return
+		}
+
+		log.Printf("failed to delete task: %v", err)
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to delete task")
+		return
+	}
+
+	resp := &taskqueuev1.DeleteTaskResponse{}
+	respBytes, err := pjson.Marshal(resp)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to marshal response")
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(respBytes)
+}

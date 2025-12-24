@@ -31,8 +31,14 @@ func (s *Server) Router() http.Handler {
 	r.Use(middleware.RequestID)
 
 	r.Get("/health", s.handler.HealthCheck)
+
+	// Task creation
 	r.Post("/tasks", s.handler.CreateTask)
 	r.Post("/tasks/{queue}", s.handler.CreateTaskWithQueue)
+
+	// Task deletion
+	r.Delete("/tasks/{taskId}", s.handler.DeleteTask)
+	r.Delete("/tasks/{queue}/{taskId}", s.handler.DeleteTaskWithQueue)
 
 	return r
 }
