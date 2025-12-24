@@ -1,6 +1,7 @@
 package queue
 
 import (
+	"log"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -10,25 +11,54 @@ import (
 
 type Client struct {
 	client     *asynq.Client
+	inspector  *asynq.Inspector
 	queueName  string
 	retryCount int
 }
 
 func NewClient(cfg *config.Config) *Client {
-	client := asynq.NewClient(asynq.RedisClientOpt{
+	redisOpt := asynq.RedisClientOpt{
 		Addr:     cfg.RedisAddr,
 		Password: cfg.RedisPassword,
 		DB:       cfg.RedisDB,
-	})
+	}
 	return &Client{
-		client:     client,
+		client:     asynq.NewClient(redisOpt),
+		inspector:  asynq.NewInspector(redisOpt),
 		queueName:  cfg.QueueName,
 		retryCount: cfg.RetryCount,
 	}
 }
 
 func (c *Client) Close() error {
+	if err := c.inspector.Close(); err != nil {
+		return err
+	}
 	return c.client.Close()
+}
+
+func (c *Client) DefaultQueueName() string {
+	return c.queueName
+}
+
+func (c *Client) DeleteTask(taskID string) error {
+	return c.DeleteTaskFromQueue(c.queueName, taskID)
+}
+
+func (c *Client) DeleteTaskFromQueue(queueName, taskID string) error {
+	info, err := c.inspector.GetTaskInfo(queueName, taskID)
+	if err != nil {
+		return err
+	}
+
+	if info.State == asynq.TaskStateActive {
+		if err := c.inspector.CancelProcessing(taskID); err != nil {
+			log.Printf("warning: could not cancel active task %s: %v", taskID, err)
+		}
+		return nil
+	}
+
+	return c.inspector.DeleteTask(queueName, taskID)
 }
 
 func (c *Client) EnqueueTask(payload *TaskPayload, scheduleTime *time.Time, taskID string) (*asynq.TaskInfo, error) {

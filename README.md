@@ -94,6 +94,40 @@ curl -X POST http://localhost:8080/tasks \
 
 `name` を指定しない場合は、IDは自動生成
 
+### タスク削除
+
+DELETE `/tasks/{taskId}`
+DELETE `/tasks/{queue}/{taskId}`
+
+キューに登録されたタスクを削除する  
+タスクがpending/scheduled/retry状態の場合は即座に削除  
+active状態の場合はキャンセルを試みる（ベストエフォート）
+
+response (成功時)
+```json
+{}
+```
+
+```bash
+# デフォルトキューから削除
+curl -X DELETE http://localhost:8080/tasks/my-task-id
+
+# 指定キューから削除
+curl -X DELETE http://localhost:8080/tasks/my-queue/my-task-id
+```
+
+タスクが見つからない場合、404 Not Foundエラー
+
+```json
+{
+  "error": {
+    "code": 404,
+    "message": "task \"my-task-id\" not found in queue \"default\"",
+    "status": "NOT_FOUND"
+  }
+}
+```
+
 ## 環境変数
 
 ### 共通

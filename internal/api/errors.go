@@ -19,6 +19,7 @@ const (
 	StatusAlreadyExists   = "ALREADY_EXISTS"
 	StatusInvalidArgument = "INVALID_ARGUMENT"
 	StatusInternal        = "INTERNAL"
+	StatusNotFound        = "NOT_FOUND"
 )
 
 func WriteError(w http.ResponseWriter, code int, status string, message string) {
