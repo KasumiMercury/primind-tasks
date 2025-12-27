@@ -1,12 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/hibiken/asynq"
 
 	taskqueuev1 "github.com/KasumiMercury/primind-tasks/internal/gen/taskqueue/v1"
+	"github.com/KasumiMercury/primind-tasks/internal/observability/logging"
+	"github.com/KasumiMercury/primind-tasks/internal/observability/tracing"
 	pjson "github.com/KasumiMercury/primind-tasks/internal/proto"
 	"github.com/KasumiMercury/primind-tasks/internal/queue"
 )
@@ -52,6 +55,16 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	payload := queue.NewTaskPayload(decodedBody, req.Task.HttpRequest.Headers)
 
+	// Inject trace context (traceparent/tracestate) into task headers
+	tracing.InjectToMap(r.Context(), payload.Headers)
+
+	// Inject x-request-id into task headers
+	reqID := logging.RequestIDFromContext(r.Context())
+	if reqID == "" {
+		reqID = logging.ValidateAndExtractRequestID("")
+	}
+	payload.Headers["x-request-id"] = reqID
+
 	var scheduleTime *time.Time
 	if req.Task.ScheduleTime != "" {
 		t, err := time.Parse(time.RFC3339, req.Task.ScheduleTime)
@@ -68,7 +81,10 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusConflict, StatusAlreadyExists, fmt.Sprintf("task with name %q already exists", req.Task.Name))
 			return
 		}
-		log.Printf("failed to enqueue task: %v", err)
+		slog.ErrorContext(r.Context(), "failed to enqueue task",
+			slog.String("event", "task.enqueue.fail"),
+			slog.String("error", err.Error()),
+		)
 		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to enqueue task")
 		return
 	}
@@ -94,7 +110,9 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(respBytes)
+	if _, err := w.Write(respBytes); err != nil {
+		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
@@ -129,6 +147,16 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 
 	payload := queue.NewTaskPayload(decodedBody, req.Task.HttpRequest.Headers)
 
+	// Inject trace context (traceparent/tracestate) into task headers
+	tracing.InjectToMap(r.Context(), payload.Headers)
+
+	// Inject x-request-id into task headers
+	reqID := logging.RequestIDFromContext(r.Context())
+	if reqID == "" {
+		reqID = logging.ValidateAndExtractRequestID("")
+	}
+	payload.Headers["x-request-id"] = reqID
+
 	var scheduleTime *time.Time
 	if req.Task.ScheduleTime != "" {
 		t, err := time.Parse(time.RFC3339, req.Task.ScheduleTime)
@@ -145,7 +173,11 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 			WriteError(w, http.StatusConflict, StatusAlreadyExists, fmt.Sprintf("task with name %q already exists", req.Task.Name))
 			return
 		}
-		log.Printf("failed to enqueue task: %v", err)
+		slog.ErrorContext(r.Context(), "failed to enqueue task",
+			slog.String("event", "task.enqueue.fail"),
+			slog.String("error", err.Error()),
+			slog.String("queue", queueName),
+		)
 		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to enqueue task")
 		return
 	}
@@ -171,13 +203,17 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(respBytes)
+	if _, err := w.Write(respBytes); err != nil {
+		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
 }
 
 func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
@@ -187,7 +223,7 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.deleteTaskFromQueue(w, h.client.DefaultQueueName(), taskID)
+	h.deleteTaskFromQueue(r.Context(), w, h.client.DefaultQueueName(), taskID)
 }
 
 func (h *Handler) DeleteTaskWithQueue(w http.ResponseWriter, r *http.Request) {
@@ -203,10 +239,10 @@ func (h *Handler) DeleteTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.deleteTaskFromQueue(w, queueName, taskID)
+	h.deleteTaskFromQueue(r.Context(), w, queueName, taskID)
 }
 
-func (h *Handler) deleteTaskFromQueue(w http.ResponseWriter, queueName, taskID string) {
+func (h *Handler) deleteTaskFromQueue(ctx context.Context, w http.ResponseWriter, queueName, taskID string) {
 	err := h.client.DeleteTaskFromQueue(queueName, taskID)
 	if err != nil {
 		if errors.Is(err, asynq.ErrQueueNotFound) || errors.Is(err, asynq.ErrTaskNotFound) {
@@ -215,7 +251,12 @@ func (h *Handler) deleteTaskFromQueue(w http.ResponseWriter, queueName, taskID s
 			return
 		}
 
-		log.Printf("failed to delete task: %v", err)
+		slog.ErrorContext(ctx, "failed to delete task",
+			slog.String("event", "task.delete.fail"),
+			slog.String("error", err.Error()),
+			slog.String("queue", queueName),
+			slog.String("task_id", taskID),
+		)
 		WriteError(w, http.StatusInternalServerError, StatusInternal, "failed to delete task")
 		return
 	}
@@ -229,5 +270,7 @@ func (h *Handler) deleteTaskFromQueue(w http.ResponseWriter, queueName, taskID s
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(respBytes)
+	if _, err := w.Write(respBytes); err != nil {
+		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
 }
