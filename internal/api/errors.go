@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -25,11 +26,13 @@ const (
 func WriteError(w http.ResponseWriter, code int, status string, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
-	json.NewEncoder(w).Encode(ErrorResponse{
+	if err := json.NewEncoder(w).Encode(ErrorResponse{
 		Error: ErrorDetail{
 			Code:    code,
 			Message: message,
 			Status:  status,
 		},
-	})
+	}); err != nil {
+		slog.Warn("failed to write error response", slog.String("error", err.Error()))
+	}
 }

@@ -14,6 +14,9 @@ type TaskPayload struct {
 }
 
 func NewTaskPayload(body []byte, headers map[string]string) *TaskPayload {
+	if headers == nil {
+		headers = map[string]string{}
+	}
 	return &TaskPayload{
 		Body:      body,
 		Headers:   headers,

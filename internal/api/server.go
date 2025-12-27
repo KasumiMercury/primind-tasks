@@ -1,19 +1,22 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/KasumiMercury/primind-tasks/internal/config"
+	"github.com/KasumiMercury/primind-tasks/internal/observability/logging"
+	obsmw "github.com/KasumiMercury/primind-tasks/internal/observability/middleware"
 	"github.com/KasumiMercury/primind-tasks/internal/queue"
 )
 
 type Server struct {
-	handler *Handler
-	port    int
+	handler    *Handler
+	port       int
+	httpServer *http.Server
 }
 
 func NewServer(cfg *config.Config, client *queue.Client) *Server {
@@ -26,10 +29,6 @@ func NewServer(cfg *config.Config, client *queue.Client) *Server {
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(middleware.RequestID)
-
 	r.Get("/health", s.handler.HealthCheck)
 
 	// Task creation
@@ -40,10 +39,43 @@ func (s *Server) Router() http.Handler {
 	r.Delete("/tasks/{taskId}", s.handler.DeleteTask)
 	r.Delete("/tasks/{queue}/{taskId}", s.handler.DeleteTaskWithQueue)
 
-	return r
+	// Wrap with observability middleware
+	handler := obsmw.HTTP(r, obsmw.HTTPConfig{
+		SkipPaths:  []string{"/health"},
+		Module:     logging.Module("taskqueue"),
+		TracerName: "github.com/KasumiMercury/primind-tasks/internal/observability/middleware",
+		SpanNameResolver: func(req *http.Request) string {
+			routeCtx := chi.RouteContext(req.Context())
+			if routeCtx == nil {
+				return ""
+			}
+
+			pattern := routeCtx.RoutePattern()
+			if pattern == "" {
+				return ""
+			}
+
+			return fmt.Sprintf("%s %s", req.Method, pattern)
+		},
+	})
+	handler = obsmw.PanicRecoveryHTTP(handler)
+
+	return handler
 }
 
 func (s *Server) ListenAndServe() error {
-	addr := fmt.Sprintf(":%d", s.port)
-	return http.ListenAndServe(addr, s.Router())
+	s.httpServer = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.port),
+		Handler: s.Router(),
+	}
+
+	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	if s.httpServer != nil {
+		return s.httpServer.Shutdown(ctx)
+	}
+
+	return nil
 }
