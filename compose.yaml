@@ -23,6 +23,7 @@ services:
       - API_PORT=8080
       - QUEUE_NAME=default
       - RETRY_COUNT=3
+      - OTEL_EXPORTER_DISABLED=true
     depends_on:
       redis:
         condition: service_healthy
@@ -38,6 +39,7 @@ services:
       - WORKER_CONCURRENCY=10
       - QUEUE_NAME=default
       - REQUEST_TIMEOUT=30s
+      - OTEL_EXPORTER_DISABLED=true
     depends_on:
       redis:
         condition: service_healthy
