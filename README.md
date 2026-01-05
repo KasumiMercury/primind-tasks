@@ -1,4 +1,6 @@
-# primind-tasks
+# Primind Tasks
+
+AsynqベースのCloud Tasks風タスクキュー
 
 ## API
 
@@ -128,6 +130,10 @@ curl -X DELETE http://localhost:8080/tasks/my-queue/my-task-id
 }
 ```
 
+### Proto定義
+
+- `proto/taskqueue/v1/taskqueue.proto`
+
 ## 環境変数
 
 ### 共通
@@ -153,3 +159,12 @@ curl -X DELETE http://localhost:8080/tasks/my-queue/my-task-id
 | `TARGET_ENDPOINT` | 転送先HTTPエンドポイント |  |
 | `WORKER_CONCURRENCY` | 並行処理数 | `10` |
 | `REQUEST_TIMEOUT` | HTTPリクエストタイムアウト | `30s` |
+
+## 依存
+
+- Redis v8
+- Asynq
+
+## モニタリング
+
+- **asynqmon**: タスクキューのWeb UIモニタリング（ポート8081）
