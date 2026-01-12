@@ -88,3 +88,9 @@ func (c *Client) EnqueueTaskWithQueue(payload *TaskPayload, scheduleTime *time.T
 
 	return c.client.Enqueue(task, opts...)
 }
+
+// Ping checks if the Redis connection is healthy by listing queues.
+func (c *Client) Ping() error {
+	_, err := c.inspector.Queues()
+	return err
+}

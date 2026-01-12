@@ -5,6 +5,7 @@ go 1.25.5
 require (
 	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
 	buf.build/go/protovalidate v1.1.0
+	connectrpc.com/grpchealth v1.4.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/hibiken/asynq v0.25.1
@@ -21,6 +22,7 @@ require (
 
 require (
 	cel.dev/expr v0.24.0 // indirect
+	connectrpc.com/connect v1.11.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

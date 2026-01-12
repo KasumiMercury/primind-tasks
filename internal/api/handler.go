@@ -208,11 +208,58 @@ func (h *Handler) CreateTaskWithQueue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HealthCheck returns a simple health check response for backward compatibility.
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
 		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
+}
+
+// HealthLive returns a simple health check response for liveness probes.
+func (h *Handler) HealthLive(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		slog.Warn("failed to write response", slog.String("error", err.Error()))
+	}
+}
+
+// HealthReady returns a health check response for readiness probes.
+// It verifies that the Redis connection is healthy.
+func (h *Handler) HealthReady(version string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response := map[string]any{
+			"status":  "healthy",
+			"version": version,
+			"checks": map[string]any{
+				"redis": map[string]string{"status": "healthy"},
+			},
+		}
+
+		// Check Redis connectivity via Asynq inspector
+		if err := h.client.Ping(); err != nil {
+			response["status"] = "unhealthy"
+			response["checks"] = map[string]any{
+				"redis": map[string]any{
+					"status": "unhealthy",
+					"error":  err.Error(),
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				slog.Warn("failed to write response", slog.String("error", err.Error()))
+			}
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			slog.Warn("failed to write response", slog.String("error", err.Error()))
+		}
 	}
 }
 
