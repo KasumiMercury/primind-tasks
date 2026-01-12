@@ -16,20 +16,25 @@ import (
 type Server struct {
 	handler    *Handler
 	port       int
+	version    string
 	httpServer *http.Server
 }
 
-func NewServer(cfg *config.Config, client *queue.Client) *Server {
+func NewServer(cfg *config.Config, client *queue.Client, version string) *Server {
 	return &Server{
 		handler: NewHandler(client),
 		port:    cfg.APIPort,
+		version: version,
 	}
 }
 
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 
-	r.Get("/health", s.handler.HealthCheck)
+	// Health check endpoints
+	r.Get("/health/live", s.handler.HealthLive)
+	r.Get("/health/ready", s.handler.HealthReady(s.version))
+	r.Get("/health", s.handler.HealthReady(s.version))
 
 	// Task creation
 	r.Post("/tasks", s.handler.CreateTask)
@@ -41,7 +46,7 @@ func (s *Server) Router() http.Handler {
 
 	// Wrap with observability middleware
 	handler := obsmw.HTTP(r, obsmw.HTTPConfig{
-		SkipPaths:  []string{"/health"},
+		SkipPaths:  []string{"/health", "/health/live", "/health/ready"},
 		Module:     logging.Module("taskqueue"),
 		TracerName: "github.com/KasumiMercury/primind-tasks/internal/observability/middleware",
 		SpanNameResolver: func(req *http.Request) string {

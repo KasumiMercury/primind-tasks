@@ -56,7 +56,7 @@ func run() error {
 		}
 	}()
 
-	server := api.NewServer(cfg, client)
+	server := api.NewServer(cfg, client, Version)
 
 	slog.InfoContext(ctx, "starting API server",
 		slog.String("event", "server.start"),
