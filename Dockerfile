@@ -17,7 +17,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.Version=${VERSION}" -o /api ./cmd/api
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s -X main.Version=${VERSION}" -o /worker ./cmd/worker
 
-FROM gcr.io/distroless/static-debian12 AS runner
+FROM gcr.io/distroless/base-debian12 AS runner
 
 FROM runner AS api
 
