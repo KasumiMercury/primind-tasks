@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"connectrpc.com/grpchealth"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/KasumiMercury/primind-tasks/internal/config"
@@ -87,9 +89,10 @@ func (s *Server) Router() http.Handler {
 }
 
 func (s *Server) ListenAndServe() error {
+	h2s := &http2.Server{}
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
-		Handler: s.Router(),
+		Handler: h2c.NewHandler(s.Router(), h2s),
 	}
 
 	return s.httpServer.ListenAndServe()
