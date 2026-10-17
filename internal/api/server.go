@@ -9,8 +9,6 @@ import (
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
 	"connectrpc.com/grpchealth/v2"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/KasumiMercury/primind-tasks/internal/config"
@@ -94,10 +92,14 @@ func (s *Server) Router() http.Handler {
 }
 
 func (s *Server) ListenAndServe() error {
-	h2s := &http2.Server{}
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
-		Handler: h2c.NewHandler(s.Router(), h2s),
+		Addr:      fmt.Sprintf(":%d", s.port),
+		Handler:   s.Router(),
+		Protocols: protocols,
 	}
 
 	return s.httpServer.ListenAndServe()
