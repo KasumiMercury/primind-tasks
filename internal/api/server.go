@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
-	"connectrpc.com/grpchealth"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
+	"connectrpc.com/grpchealth/v2"
 	"github.com/go-chi/chi/v5"
 
 	"github.com/KasumiMercury/primind-tasks/internal/config"
@@ -52,8 +52,11 @@ func (s *Server) Router() http.Handler {
 	r.Delete("/tasks/{queue}/{taskId}", s.handler.DeleteTaskWithQueue)
 
 	// gRPC Health Checking Protocol (grpc.health.v1.Health/Check)
-	grpcHealthChecker := health.NewGRPCChecker(s.healthChecker)
-	grpcHealthPath, grpcHealthHandler := grpchealth.NewHandler(grpcHealthChecker)
+	grpcHealthServer := connect.NewServer()
+	grpchealth.Register(grpcHealthServer, health.NewGRPCChecker(s.healthChecker))
+	grpcHealthHandler := http.NewServeMux()
+	connecthttp.Mount(grpcHealthHandler, grpcHealthServer)
+	grpcHealthPath := "/" + grpchealth.HealthV1ServiceName + "/"
 
 	// Wrap with observability middleware
 	chiHandler := obsmw.HTTP(r, obsmw.HTTPConfig{
@@ -89,10 +92,14 @@ func (s *Server) Router() http.Handler {
 }
 
 func (s *Server) ListenAndServe() error {
-	h2s := &http2.Server{}
+	protocols := new(http.Protocols)
+	protocols.SetHTTP1(true)
+	protocols.SetUnencryptedHTTP2(true)
+
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
-		Handler: h2c.NewHandler(s.Router(), h2s),
+		Addr:      fmt.Sprintf(":%d", s.port),
+		Handler:   s.Router(),
+		Protocols: protocols,
 	}
 
 	return s.httpServer.ListenAndServe()

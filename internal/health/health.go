@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"connectrpc.com/grpchealth"
+	"connectrpc.com/grpchealth/v2"
 )
 
 // Status represents the health status of a service or dependency.
