@@ -1,7 +1,13 @@
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1 h1:j9yeqTWEFrtimt8Nng2MIeRrpoCvQzM9/g25XTvqUGg=
 buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1/go.mod h1:tvtbpgaVXZX4g6Pn+AnzFycuRK3MOz5HJfEGeEllXYM=
+buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.1 h1:Slv0uGxx219srASyiaI5C9cDlyG8kNDcXpTSYcuAeE4=
+buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.1/go.mod h1:TCt1lluMFnctISJXvkIQ4x3ABrPuUKCWKyjKdkJNBpw=
 buf.build/go/protovalidate v1.1.2 h1:83vYHoY8f34hB8MeitGaYE3CGVPFxwdEUuskh5qQpA0=
 buf.build/go/protovalidate v1.1.2/go.mod h1:Ez3z+w4c+wG+EpW8ovgZaZPnPl2XVF6kaxgcv1NG/QE=
+buf.build/go/protovalidate v1.4.0 h1:UjLrYbt5VX7+TMOs2+pG5FhZhIG1mSfK4EIopbb4LcM=
+buf.build/go/protovalidate v1.4.0/go.mod h1:8vJfzNT6NIG2qm3uFsJDXMlRmG+bQJzbcIn1Aa0vPGs=
+cel.dev/cel-go v0.32.0 h1:irvpFKr5EuGPyxeME03ERh0rii1TX+BDAnB9eL3IvNk=
+cel.dev/cel-go v0.32.0/go.mod h1:DnVip7tpJSsgZymwfT+m1tnEVy3ivAjSMXPx12YrMkU=
 cel.dev/expr v0.25.3 h1:A2jO8jwOugrrovveCWfj0KEZOfqiLgAcwjpHPhzIGw0=
 cel.dev/expr v0.25.3/go.mod h1:hrXvqGP6G6gyx8UAHSHJ5RGk//1Oj5nXQ2NI02Nrsg4=
 connectrpc.com/connect v1.21.1 h1:h2kacdlzXpZU2OQFSv98xkjYXNUSr/ptxmGVbS/+CRM=
