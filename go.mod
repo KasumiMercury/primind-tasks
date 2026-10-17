@@ -3,7 +3,7 @@ module github.com/KasumiMercury/primind-tasks
 go 1.27.0
 
 require (
-	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.11-20251209175733-2a1774d88802.1
+	buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go v1.36.12-20260825204119-511051f7f437.2
 	buf.build/go/protovalidate v1.1.2
 	connectrpc.com/grpchealth v1.5.0
 	github.com/go-chi/chi/v5 v5.5.0
